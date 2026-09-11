@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#170d17">
+  <meta name="description" content="《独一无二的我》互动 3D 绘本——拖拽书页，翻开兔比U的成长故事。">
+  <title>独一无二的我 · THE UNIQUE ME</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #fff8e9;
+      --muted: rgba(255, 248, 233, .66);
+      --rose: #ff7c72;
+      --gold: #ffd36f;
+      --paper: #f4e7cf;
+      --ease-page: cubic-bezier(.2, .76, .16, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { width: 100%; min-height: 100%; }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      color: var(--ink);
+      background: #120a13;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button { font: inherit; }
+
+    .app {
+      position: relative;
+      isolation: isolate;
+      min-height: 100svh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: max(18px, env(safe-area-inset-top)) clamp(18px, 3vw, 48px)
+        max(16px, env(safe-area-inset-bottom));
+    }
+
+    .ambient {
+      position: fixed;
+      z-index: -4;
+      inset: -7%;
+      background-image: url("cover.png");
+      background-size: cover;
+      background-position: center;
+      filter: blur(42px) saturate(.82) brightness(.32);
+      transform: scale(1.12);
+      transition: background-image .6s ease, filter 1s ease;
+    }
+
+    .ambient::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% 38%, rgba(255, 184, 110, .16), transparent 36%),
+        linear-gradient(180deg, rgba(8, 5, 13, .18), rgba(10, 6, 13, .78));
+    }
+
+    .grain {
+      position: fixed;
+      z-index: 20;
+      inset: 0;
+      pointer-events: none;
+      opacity: .045;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.75'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+    }
+
+    .topbar,
+    .footer {
+      position: relative;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand { display: grid; gap: 2px; }
+
+    .brand strong {
+      font-family: Georgia, "Times New Roman", "Songti SC", serif;
+      font-size: clamp(15px, 1.5vw, 22px);
+      font-weight: 500;
+      letter-spacing: .12em;
+    }
+
+    .brand span,
+    .footer {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    .icon-button,
+    .close-button,
+    .nav-button,
+    .open-button {
+      border: 1px solid rgba(255, 248, 233, .24);
+      color: var(--ink);
+      background: rgba(27, 14, 24, .34);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      cursor: pointer;
+      transition: transform .2s ease, border-color .2s ease, background .2s ease, opacity .3s ease;
+    }
+
+    .icon-button:hover,
+    .close-button:hover,
+    .nav-button:hover:not(:disabled),
+    .open-button:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 248, 233, .62);
+      background: rgba(53, 28, 44, .58);
+    }
+
+    .icon-button:focus-visible,
+    .close-button:focus-visible,
+    .nav-button:focus-visible,
+    .open-button:focus-visible,
+    .closed-book:focus-visible {
+      outline: 2px solid var(--gold);
+      outline-offset: 4px;
+    }
+
+    .icon-button,
+    .close-button {
+      min-width: 42px;
+      height: 42px;
+      border-radius: 999px;
+    }
+
+    .close-button {
+      width: auto;
+      padding: 0 16px;
+      opacity: 0;
+      pointer-events: none;
+      font-size: 11px;
+      letter-spacing: .12em;
+    }
+
+    .app.is-open .close-button { opacity: 1; pointer-events: auto; }
+
+    .reading-room {
+      position: relative;
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      perspective: 2200px;
+    }
+
+    .book-stage {
+      position: relative;
+      width: min(88vw, 1380px);
+      height: min(76vh, 780px);
+      display: grid;
+      place-items: center;
+      transform-style: preserve-3d;
+    }
+
+    .book-stage::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      width: 84%;
+      height: 12%;
+      left: 8%;
+      bottom: 4%;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, .64);
+      filter: blur(32px);
+      transform: rotateX(76deg) translateZ(-45px);
+      opacity: .76;
+      transition: width .9s var(--ease-page), opacity .8s ease;
+    }
+
+    .closed-book {
+      position: absolute;
+      z-index: 8;
+      height: min(69vh, 650px);
+      max-height: calc(100% - 24px);
+      aspect-ratio: 1922 / 2591;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+      transform-style: preserve-3d;
+      transform: rotateY(-8deg) rotateX(3deg) translateZ(40px);
+      transition: transform 1s var(--ease-page), opacity .62s ease, visibility 0s linear;
+    }
+
+    .closed-book.show-back {
+      transform: rotateY(172deg) rotateX(3deg) translateZ(40px);
+    }
+
+    .back-cover-hit {
+      position: absolute;
+      z-index: 10;
+      height: min(69vh, 650px);
+      max-height: calc(100% - 24px);
+      aspect-ratio: 1922 / 2591;
+      border: 0;
+      padding: 0;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      cursor: pointer;
+      background: transparent;
+      transform: rotateY(-8deg) rotateX(3deg) translateZ(62px);
+    }
+
+    .app.showing-back:not(.is-open) .back-cover-hit {
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .back-cover-hit:focus-visible {
+      outline: 2px solid var(--gold);
+      outline-offset: 4px;
+    }
+
+    .cover-face {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      border-radius: 7px 14px 14px 7px;
+      background: #e6a41d;
+      box-shadow:
+        8px 9px 0 #d2c3a5,
+        12px 14px 0 rgba(58, 33, 23, .82),
+        22px 30px 55px rgba(0, 0, 0, .55);
+      backface-visibility: hidden;
+    }
+
+    .cover-face::before {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      inset: 0 auto 0 0;
+      width: 7%;
+      background: linear-gradient(90deg, rgba(64, 28, 8, .32), transparent);
+      mix-blend-mode: multiply;
+    }
+
+    .cover-face::after {
+      content: "";
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      border: 1px solid rgba(255, 255, 255, .3);
+      border-radius: inherit;
+      box-shadow: inset -10px 0 24px rgba(255,255,255,.08);
+    }
+
+    .cover-face img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+    .back-cover {
+      transform: rotateY(180deg);
+      border-radius: 14px 7px 7px 14px;
+      background: #000;
+      box-shadow:
+        -8px 9px 0 #d2c3a5,
+        -12px 14px 0 rgba(14, 9, 13, .86),
+        -22px 30px 55px rgba(0, 0, 0, .58);
+    }
+
+    .back-cover::before {
+      inset: 0 0 0 auto;
+      background: linear-gradient(270deg, rgba(0, 0, 0, .34), transparent);
+    }
+
+    .back-cover::after {
+      box-shadow: inset 10px 0 24px rgba(255,255,255,.035);
+    }
+
+    .open-callout {
+      position: absolute;
+      z-index: 9;
+      left: 50%;
+      bottom: clamp(18px, 4vh, 42px);
+      transform: translateX(-50%);
+      pointer-events: none;
+      white-space: nowrap;
+      padding: 10px 15px;
+      border-radius: 999px;
+      color: #271514;
+      background: rgba(255, 248, 233, .88);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      transition: opacity .2s ease;
+    }
+
+    .closed-book.show-back .open-callout { opacity: 0; }
+
+    .open-book {
+      --page-turn: 0deg;
+      position: absolute;
+      z-index: 5;
+      width: 100%;
+      max-height: 100%;
+      aspect-ratio: 16 / 9;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      user-select: none;
+      touch-action: none;
+      transform: scale(.7) rotateX(16deg) translateY(8%) translateZ(-80px);
+      transform-style: preserve-3d;
+      transition: transform 1.05s var(--ease-page), opacity .58s ease, visibility 0s linear .72s;
+    }
+
+    .app.is-open .closed-book {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: rotateY(-118deg) rotateX(7deg) translateX(-38%) scale(.78);
+      transition: transform 1s var(--ease-page), opacity .55s ease, visibility 0s linear .62s;
+    }
+
+    .app.is-open .closed-book.show-back {
+      transform: rotateY(298deg) rotateX(7deg) translateX(38%) scale(.78);
+    }
+
+    .app.is-open .open-book {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: scale(1) rotateX(2.4deg) translateZ(0);
+      transition: transform 1.05s var(--ease-page) .13s, opacity .55s ease .18s, visibility 0s;
+    }
+
+    .hard-cover {
+      position: absolute;
+      z-index: -3;
+      top: -1.8%;
+      bottom: -2.5%;
+      width: 51%;
+      background: linear-gradient(145deg, #3c1d2b, #171019 65%, #0c080d);
+      border-radius: 13px 9px 12px 14px;
+      box-shadow: 0 22px 48px rgba(0,0,0,.44);
+    }
+
+    .hard-cover.left { left: -1.5%; transform: rotateY(2deg) translateZ(-13px); }
+    .hard-cover.right { right: -1.5%; transform: rotateY(-2deg) translateZ(-13px); }
+
+    .page-stack {
+      position: absolute;
+      z-index: -2;
+      top: -.6%;
+      bottom: -1.1%;
+      width: 50%;
+      border-radius: 7px;
+      background:
+        repeating-linear-gradient(180deg, #f4ead5 0 2px, #d5c5a8 2px 3px, #f2e6cf 3px 5px);
+      box-shadow: inset 0 0 12px rgba(87, 58, 30, .3);
+    }
+
+    .page-stack.left { left: -.55%; }
+    .page-stack.right { right: -.55%; }
+
+    .page-half,
+    .turning-page {
+      position: absolute;
+      top: 0;
+      width: 50%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--paper);
+      transform-style: preserve-3d;
+    }
+
+    .page-half.left {
+      left: 0;
+      border-radius: 8px 2px 2px 9px;
+      box-shadow: inset -18px 0 28px rgba(43, 25, 18, .15), inset 1px 0 rgba(255,255,255,.65);
+    }
+
+    .page-half.right {
+      right: 0;
+      border-radius: 2px 9px 9px 2px;
+      box-shadow: inset 18px 0 28px rgba(43, 25, 18, .15), inset -1px 0 rgba(255,255,255,.65);
+    }
+
+    .spread-image {
+      position: absolute;
+      top: 0;
+      width: 200%;
+      height: 100%;
+      max-width: none;
+      display: block;
+      object-fit: contain;
+      background: #0c0910;
+      pointer-events: none;
+      -webkit-user-drag: none;
+    }
+
+    .spread-image.left { left: 0; }
+    .spread-image.right { left: -100%; }
+
+    .page-sheen {
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(112deg, rgba(255,255,255,.08), transparent 26%, transparent 74%, rgba(16,8,11,.12));
+      mix-blend-mode: screen;
+    }
+
+    .turning-page {
+      z-index: 8;
+      display: none;
+      overflow: visible;
+      transform: var(--turn-transform, rotateY(0deg));
+      will-change: transform;
+    }
+
+    .turning-page.is-visible { display: block; }
+    .turning-page.to-next { left: 50%; transform-origin: left center; }
+    .turning-page.to-prev { left: 0; transform-origin: right center; }
+
+    .turn-face {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: var(--paper);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 3px 9px 9px 3px;
+      box-shadow: 8px 2px 30px rgba(0,0,0,.28);
+    }
+
+    .turn-face.back {
+      transform: rotateY(180deg);
+      border-radius: 9px 3px 3px 9px;
+      box-shadow: -8px 2px 30px rgba(0,0,0,.28);
+    }
+
+    .turn-face::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(90deg, rgba(28, 14, 14, .22), transparent 26%, rgba(255,255,255,.10) 78%, rgba(16,8,9,.16));
+      opacity: var(--flip-shade, .3);
+    }
+
+    .spine {
+      position: absolute;
+      z-index: 12;
+      left: 50%;
+      top: -.2%;
+      bottom: -.4%;
+      width: clamp(10px, 1.15vw, 19px);
+      transform: translateX(-50%) translateZ(16px);
+      pointer-events: none;
+      background: linear-gradient(90deg,
+        rgba(12,7,9,.54), rgba(76,45,42,.18) 30%, rgba(255,255,255,.13) 48%,
+        rgba(31,17,18,.28) 64%, rgba(7,4,7,.58));
+      filter: blur(.25px);
+      mix-blend-mode: multiply;
+      opacity: .82;
+    }
+
+    .spine::after {
+      content: "";
+      position: absolute;
+      inset: 1% 44%;
+      width: 1px;
+      background: rgba(255, 244, 214, .38);
+      box-shadow: 0 0 9px rgba(255,244,214,.24);
+    }
+
+    .drag-glow {
+      position: absolute;
+      z-index: 13;
+      inset: 0;
+      border: 1px solid rgba(255, 244, 214, .18);
+      border-radius: 10px;
+      pointer-events: none;
+      box-shadow: inset 0 0 28px rgba(255, 235, 197, .04);
+    }
+
+    .nav-button {
+      position: absolute;
+      z-index: 28;
+      top: 50%;
+      width: clamp(46px, 5vw, 68px);
+      height: clamp(46px, 5vw, 68px);
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      transform: translateY(-50%);
+      font-size: clamp(21px, 2.2vw, 31px);
+      line-height: 1;
+    }
+
+    .nav-button:hover:not(:disabled) { transform: translateY(calc(-50% - 2px)); }
+    .nav-button.prev { left: max(4px, calc(50% - min(48vw, 760px))); }
+    .nav-button.next { right: max(4px, calc(50% - min(48vw, 760px))); }
+    .nav-button:disabled { opacity: .18; cursor: default; }
+    .app:not(.is-open) .nav-button { opacity: 0; pointer-events: none; }
+
+    .footer { min-height: 38px; }
+
+    .progress {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      opacity: 0;
+      transition: opacity .35s ease;
+    }
+
+    .app.is-open .progress { opacity: 1; }
+
+    .progress-line {
+      position: relative;
+      width: clamp(80px, 12vw, 180px);
+      height: 1px;
+      overflow: hidden;
+      background: rgba(255,255,255,.2);
+    }
+
+    .progress-line i {
+      position: absolute;
+      inset: 0;
+      width: var(--progress, 11.11%);
+      background: linear-gradient(90deg, var(--rose), var(--gold));
+      transition: width .55s var(--ease-page);
+    }
+
+    .hint { text-align: right; transition: opacity .35s ease; }
+    .app:not(.is-open) .hint { opacity: .46; }
+
+    .opening-title {
+      position: absolute;
+      z-index: 10;
+      left: 50%;
+      bottom: -4px;
+      transform: translateX(-50%);
+      font-family: Georgia, "Times New Roman", "Songti SC", serif;
+      font-size: clamp(12px, 1.2vw, 18px);
+      letter-spacing: .18em;
+      white-space: nowrap;
+      color: rgba(255,248,233,.75);
+      opacity: 1;
+      transition: opacity .4s ease;
+    }
+
+    .app.is-open .opening-title { opacity: 0; }
+
+    .sound-bars {
+      display: inline-flex;
+      align-items: end;
+      justify-content: center;
+      gap: 2px;
+      height: 12px;
+    }
+
+    .sound-bars i { display:block; width:2px; height:5px; background:currentColor; border-radius:2px; }
+    .sound-bars i:nth-child(2) { height:10px; }
+    .sound-bars i:nth-child(3) { height:7px; }
+    .is-muted .sound-bars i { height: 2px; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 720px) {
+      .app { padding-inline: 12px; }
+      .brand span { display: none; }
+      .book-stage { width: 96vw; height: min(70vh, 690px); }
+      .nav-button { top: auto; bottom: -2px; }
+      .nav-button.prev { left: 16px; }
+      .nav-button.next { right: 16px; }
+      .footer { padding-inline: 72px; justify-content: center; }
+      .hint { display: none; }
+      .opening-title { bottom: 8px; }
+      .close-button { padding-inline: 12px; }
+      .close-button span { display: none; }
+    }
+
+    @media (max-height: 620px) and (orientation: landscape) {
+      .app { padding-block: 10px; }
+      .brand span, .footer { display: none; }
+      .book-stage { height: 82vh; width: 82vw; }
+      .closed-book { height: 78vh; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" id="app">
+    <div class="ambient" id="ambient" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <strong>独一无二的我</strong>
+        <span>The Unique Me · An interactive storybook</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="icon-button" id="soundButton" type="button" aria-label="关闭声音" title="声音">
+          <span class="sound-bars" aria-hidden="true"><i></i><i></i><i></i></span>
+        </button>
+        <button class="close-button" id="closeButton" type="button" aria-label="合上绘本">× <span>合上绘本</span></button>
+      </div>
+    </header>
+
+    <section class="reading-room" aria-label="互动绘本阅读器">
+      <button class="nav-button prev" id="prevButton" type="button" aria-label="上一页" disabled>‹</button>
+
+      <div class="book-stage" id="bookStage">
+        <button class="closed-book" id="closedBook" type="button" aria-label="打开《独一无二的我》">
+          <span class="cover-face"><img src="cover.png" alt="《独一无二的我》封面"></span>
+          <span class="cover-face back-cover"><img src="back-cover.png" alt="《独一无二的我》封底"></span>
+          <span class="open-callout">打开绘本 · OPEN BOOK</span>
+        </button>
+        <button class="back-cover-hit" id="backCoverHit" type="button" aria-label="从封底重新打开《独一无二的我》" disabled></button>
+
+        <div class="open-book" id="openBook" aria-hidden="true">
+          <div class="hard-cover left" aria-hidden="true"></div>
+          <div class="hard-cover right" aria-hidden="true"></div>
+          <div class="page-stack left" aria-hidden="true"></div>
+          <div class="page-stack right" aria-hidden="true"></div>
+
+          <div class="page-half left" aria-hidden="true">
+            <img class="spread-image left" id="leftImage" alt="">
+            <span class="page-sheen"></span>
+          </div>
+          <div class="page-half right" aria-hidden="true">
+            <img class="spread-image right" id="rightImage" alt="">
+            <span class="page-sheen"></span>
+          </div>
+
+          <div class="turning-page" id="turningPage" aria-hidden="true">
+            <div class="turn-face front"><img class="spread-image" id="frontImage" alt=""></div>
+            <div class="turn-face back"><img class="spread-image" id="backImage" alt=""></div>
+          </div>
+
+          <div class="spine" aria-hidden="true"></div>
+          <div class="drag-glow" aria-hidden="true"></div>
+        </div>
+
+        <p class="opening-title">A STORY ABOUT FINDING YOUR OWN LIGHT</p>
+      </div>
+
+      <button class="nav-button next" id="nextButton" type="button" aria-label="下一页">›</button>
+    </section>
+
+    <footer class="footer">
+      <div class="progress" aria-label="阅读进度">
+        <span id="pageNumber">01 / 09</span>
+        <span class="progress-line" aria-hidden="true"><i id="progressBar"></i></span>
+      </div>
+      <div class="hint">拖拽书页或使用方向键 · DRAG TO TURN</div>
+    </footer>
+    <p class="sr-only" id="liveStatus" aria-live="polite"></p>
+  </main>
+
+  <script>
+    (() => {
+      const spreads = [
+        { src: '01.png', alt: '第1页，小镇：兔比U在月光下望向窗外。' },
+        { src: '02.png', alt: '第2页，书中的光：兔比U在温暖的房间里读书。' },
+        { src: '03.png', alt: '第3页，启程：兔比U背着行囊坐上驶向海边的列车。' },
+        { src: '04.png', alt: '第4页，飞越边界：兔比U驾驶小飞机飞向远方。' },
+        { src: '05.png', alt: '第5页，分享勇气：兔比U在雪原把胡萝卜送给洞穴里的朋友。' },
+        { src: '06.png', alt: '第6页，内心的炉火：兔比U在温暖炉火旁休息。' },
+        { src: '07.png', alt: '第7页，循着星光回家：星光围绕返乡的缆车。' },
+        { src: '08.png', alt: '第8页，偏见之龙：兔比U勇敢面对恶龙。' },
+        { src: '09.png', alt: '第9页，新的出发：兔比U举起属于自己的星光。' }
+      ];
+
+      const app = document.getElementById('app');
+      const openBook = document.getElementById('openBook');
+      const closedBook = document.getElementById('closedBook');
+      const backCoverHit = document.getElementById('backCoverHit');
+      const closeButton = document.getElementById('closeButton');
+      const prevButton = document.getElementById('prevButton');
+      const nextButton = document.getElementById('nextButton');
+      const soundButton = document.getElementById('soundButton');
+      const leftImage = document.getElementById('leftImage');
+      const rightImage = document.getElementById('rightImage');
+      const turningPage = document.getElementById('turningPage');
+      const frontImage = document.getElementById('frontImage');
+      const backImage = document.getElementById('backImage');
+      const ambient = document.getElementById('ambient');
+      const pageNumber = document.getElementById('pageNumber');
+      const progressBar = document.getElementById('progressBar');
+      const liveStatus = document.getElementById('liveStatus');
+
+      let current = 0;
+      let isOpen = false;
+      let isAnimating = false;
+      let drag = null;
+      let audio = null;
+      let muted = false;
+
+      function setSplitImage(element, spread, side) {
+        element.src = spread.src;
+        element.alt = '';
+        element.className = `spread-image ${side}`;
+      }
+
+      function render(index, announce = false) {
+        current = Math.max(0, Math.min(spreads.length - 1, index));
+        setSplitImage(leftImage, spreads[current], 'left');
+        setSplitImage(rightImage, spreads[current], 'right');
+        if (isOpen) ambient.style.backgroundImage = `url("${spreads[current].src}")`;
+        pageNumber.textContent = `${String(current + 1).padStart(2, '0')} / ${String(spreads.length).padStart(2, '0')}`;
+        progressBar.style.setProperty('--progress', `${((current + 1) / spreads.length) * 100}%`);
+        prevButton.disabled = current === 0 || isAnimating;
+        nextButton.disabled = isAnimating;
+        nextButton.setAttribute('aria-label', current === spreads.length - 1 ? '合上绘本并查看封底' : '下一页');
+        if (announce) liveStatus.textContent = spreads[current].alt;
+        [current - 1, current + 1].forEach(i => {
+          if (spreads[i]) { const preload = new Image(); preload.src = spreads[i].src; }
+        });
+      }
+
+      function openStory() {
+        if (isOpen) return;
+        initAudio();
+        isOpen = true;
+        app.classList.remove('showing-back');
+        backCoverHit.disabled = true;
+        app.classList.add('is-open');
+        openBook.setAttribute('aria-hidden', 'false');
+        render(current, true);
+        playChime();
+        window.setTimeout(() => openBook.focus({ preventScroll: true }), 720);
+      }
+
+      function closeStory(showBack = current === spreads.length - 1) {
+        if (!isOpen || isAnimating) return;
+        isOpen = false;
+        closedBook.classList.toggle('show-back', Boolean(showBack));
+        app.classList.toggle('showing-back', Boolean(showBack));
+        backCoverHit.disabled = !showBack;
+        closedBook.setAttribute('aria-label', showBack ? '从封底重新打开《独一无二的我》' : '打开《独一无二的我》');
+        app.classList.remove('is-open');
+        openBook.setAttribute('aria-hidden', 'true');
+        ambient.style.backgroundImage = showBack ? 'url("back-cover.png")' : 'url("cover.png")';
+        liveStatus.textContent = showBack ? '绘本已合上，现在显示封底。' : '绘本已合上。';
+        window.setTimeout(() => (showBack ? backCoverHit : closedBook).focus({ preventScroll: true }), 480);
+      }
+
+      function configureTurn(direction) {
+        const nextIndex = direction === 'next' ? current + 1 : current - 1;
+        if (nextIndex < 0 || nextIndex >= spreads.length) return false;
+
+        turningPage.className = `turning-page is-visible to-${direction}`;
+        turningPage.style.transition = 'none';
+        turningPage.style.setProperty('--turn-transform', 'rotateY(0deg)');
+
+        if (direction === 'next') {
+          setSplitImage(frontImage, spreads[current], 'right');
+          setSplitImage(backImage, spreads[nextIndex], 'left');
+          setSplitImage(leftImage, spreads[current], 'left');
+          setSplitImage(rightImage, spreads[nextIndex], 'right');
+        } else {
+          setSplitImage(frontImage, spreads[current], 'left');
+          setSplitImage(backImage, spreads[nextIndex], 'right');
+          setSplitImage(leftImage, spreads[nextIndex], 'left');
+          setSplitImage(rightImage, spreads[current], 'right');
+        }
+        return true;
+      }
+
+      function setTurnProgress(direction, progress) {
+        const eased = Math.max(0, Math.min(1, progress));
+        const degrees = (direction === 'next' ? -180 : 180) * eased;
+        turningPage.style.setProperty('--turn-transform', `rotateY(${degrees}deg)`);
+        turningPage.style.setProperty('--flip-shade', String(.16 + Math.sin(eased * Math.PI) * .5));
+      }
+
+      function finishTurn(direction, complete, progress = 0) {
+        if (!turningPage.classList.contains('is-visible')) return;
+        isAnimating = true;
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+        turningPage.style.transition = 'transform 680ms var(--ease-page)';
+
+        requestAnimationFrame(() => {
+          setTurnProgress(direction, complete ? 1 : 0);
+        });
+
+        const duration = Math.max(220, 680 * Math.abs((complete ? 1 : 0) - progress));
+        window.setTimeout(() => {
+          if (complete) {
+            current += direction === 'next' ? 1 : -1;
+            playFlip();
+          }
+          turningPage.className = 'turning-page';
+          turningPage.style.transition = 'none';
+          turningPage.style.removeProperty('--turn-transform');
+          isAnimating = false;
+          render(current, complete);
+          if (complete && current === spreads.length - 1) playChime();
+        }, duration + 35);
+      }
+
+      function turn(direction) {
+        if (!isOpen || isAnimating || !configureTurn(direction)) return;
+        isAnimating = true;
+        prevButton.disabled = true;
+        nextButton.disabled = true;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            turningPage.style.transition = 'transform 820ms var(--ease-page)';
+            setTurnProgress(direction, 1);
+            window.setTimeout(() => {
+              current += direction === 'next' ? 1 : -1;
+              playFlip();
+              turningPage.className = 'turning-page';
+              turningPage.style.transition = 'none';
+              turningPage.style.removeProperty('--turn-transform');
+              isAnimating = false;
+              render(current, true);
+              if (current === spreads.length - 1) playChime();
+            }, 855);
+          });
+        });
+      }
+
+      function onPointerDown(event) {
+        if (!isOpen || isAnimating || event.button > 0) return;
+        drag = {
+          id: event.pointerId,
+          startX: event.clientX,
+          lastX: event.clientX,
+          startTime: performance.now(),
+          direction: null,
+          progress: 0
+        };
+        openBook.setPointerCapture(event.pointerId);
+      }
+
+      function onPointerMove(event) {
+        if (!drag || drag.id !== event.pointerId || isAnimating) return;
+        const dx = event.clientX - drag.startX;
+        drag.lastX = event.clientX;
+        if (!drag.direction && Math.abs(dx) > 5) {
+          const proposed = dx < 0 ? 'next' : 'prev';
+          if (!configureTurn(proposed)) return;
+          drag.direction = proposed;
+        }
+        if (!drag.direction) return;
+        event.preventDefault();
+        const width = openBook.getBoundingClientRect().width;
+        drag.progress = Math.min(1, Math.abs(dx) / Math.max(180, width * .46));
+        setTurnProgress(drag.direction, drag.progress);
+      }
+
+      function onPointerEnd(event) {
+        if (!drag || drag.id !== event.pointerId) return;
+        if (openBook.hasPointerCapture(event.pointerId)) openBook.releasePointerCapture(event.pointerId);
+        const elapsed = Math.max(1, performance.now() - drag.startTime);
+        const velocity = Math.abs(event.clientX - drag.startX) / elapsed;
+        const { direction, progress } = drag;
+        drag = null;
+        if (!direction) return;
+        finishTurn(direction, progress > .24 || velocity > .55, progress);
+      }
+
+      function initAudio() {
+        if (audio) {
+          if (audio.context.state === 'suspended') audio.context.resume();
+          return;
+        }
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const context = new AudioCtx();
+        const master = context.createGain();
+        master.gain.value = muted ? 0 : .12;
+        master.connect(context.destination);
+
+        const seconds = 4;
+        const buffer = context.createBuffer(1, context.sampleRate * seconds, context.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        const wind = context.createBufferSource();
+        const windFilter = context.createBiquadFilter();
+        const windGain = context.createGain();
+        const breeze = context.createOscillator();
+        const breezeDepth = context.createGain();
+        wind.buffer = buffer;
+        wind.loop = true;
+        windFilter.type = 'lowpass';
+        windFilter.frequency.value = 520;
+        windGain.gain.value = .018;
+        breeze.frequency.value = .085;
+        breezeDepth.gain.value = .008;
+        breeze.connect(breezeDepth).connect(windGain.gain);
+        wind.connect(windFilter).connect(windGain).connect(master);
+        wind.start();
+        breeze.start();
+        audio = { context, master };
+      }
+
+      function playFlip() {
+        if (!audio || muted) return;
+        const { context, master } = audio;
+        const duration = .34;
+        const buffer = context.createBuffer(1, context.sampleRate * duration, context.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          const t = i / data.length;
+          data[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * t) * (1 - t * .65);
+        }
+        const source = context.createBufferSource();
+        const filter = context.createBiquadFilter();
+        const gain = context.createGain();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1200;
+        filter.Q.value = .65;
+        gain.gain.value = .2;
+        source.buffer = buffer;
+        source.connect(filter).connect(gain).connect(master);
+        source.start();
+      }
+
+      function playChime() {
+        if (!audio || muted) return;
+        const { context, master } = audio;
+        [0, .13, .29].forEach((delay, i) => {
+          const osc = context.createOscillator();
+          const gain = context.createGain();
+          const now = context.currentTime + delay;
+          osc.type = 'sine';
+          osc.frequency.value = [784, 988, 1318][i];
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(.075, now + .018);
+          gain.gain.exponentialRampToValueAtTime(.0001, now + 1.45);
+          osc.connect(gain).connect(master);
+          osc.start(now);
+          osc.stop(now + 1.5);
+        });
+      }
+
+      closedBook.addEventListener('click', openStory);
+      backCoverHit.addEventListener('click', openStory);
+      closeButton.addEventListener('click', () => closeStory());
+      prevButton.addEventListener('click', () => turn('prev'));
+      nextButton.addEventListener('click', () => current === spreads.length - 1 ? closeStory(true) : turn('next'));
+      openBook.addEventListener('pointerdown', onPointerDown);
+      openBook.addEventListener('pointermove', onPointerMove);
+      openBook.addEventListener('pointerup', onPointerEnd);
+      openBook.addEventListener('pointercancel', onPointerEnd);
+
+      soundButton.addEventListener('click', () => {
+        initAudio();
+        muted = !muted;
+        soundButton.classList.toggle('is-muted', muted);
+        soundButton.setAttribute('aria-label', muted ? '打开声音' : '关闭声音');
+        if (audio) audio.master.gain.setTargetAtTime(muted ? 0 : .12, audio.context.currentTime, .08);
+        if (!muted) playChime();
+      });
+
+      document.addEventListener('keydown', event => {
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          if (!isOpen) openStory();
+          else if (current === spreads.length - 1) closeStory(true);
+          else turn('next');
+        }
+        if (event.key === 'ArrowLeft' && isOpen) { event.preventDefault(); turn('prev'); }
+        if (event.key === 'Escape' && isOpen) closeStory();
+        if ((event.key === 'Enter' || event.key === ' ') && document.activeElement === openBook) {
+          event.preventDefault();
+          turn('next');
+        }
+      });
+
+      openBook.tabIndex = 0;
+      openBook.setAttribute('role', 'group');
+      openBook.setAttribute('aria-label', '绘本页面，左右拖拽可翻页');
+      render(0);
+    })();
+  </script>
+</body>
+</html>
